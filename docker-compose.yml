@@ -1,0 +1,68 @@
+services:
+  site-a:
+    build: .
+    image: swap-app:latest
+    environment:
+      ROLE: site-a
+      DATA_DIR: /data
+    volumes:
+      - site_a_data:/data
+    networks:
+      - swapnet
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status==200 else sys.exit(1)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  site-b:
+    image: swap-app:latest
+    environment:
+      ROLE: site-b
+      DATA_DIR: /data
+    volumes:
+      - site_b_data:/data
+    networks:
+      - swapnet
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status==200 else sys.exit(1)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  coordinator:
+    image: swap-app:latest
+    environment:
+      ROLE: coordinator
+      DATA_DIR: /data
+      SITE_A_URL: http://site-a:8000
+      SITE_B_URL: http://site-b:8000
+      PREPARE_DEADLINE: "10"
+      HTTP_TIMEOUT: "3"
+    ports:
+      - "8000:8000"
+    volumes:
+      - coordinator_data:/data
+    networks:
+      - swapnet
+    depends_on:
+      site-a:
+        condition: service_healthy
+      site-b:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status==200 else sys.exit(1)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+networks:
+  swapnet:
+
+volumes:
+  coordinator_data:
+  site_a_data:
+  site_b_data:
